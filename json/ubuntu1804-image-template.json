@@ -1,0 +1,74 @@
+{
+  "type": "Microsoft.VirtualMachineImages/imageTemplates",
+  "apiVersion": "2020-02-14",
+  "location": "",
+  "dependsOn": [],
+  "tags": {
+    "imagebuilderTemplate": "ubuntu1804",
+    "userIdentity": "enabled"
+  },
+  "identity": {
+    "type": "UserAssigned",
+    "userAssignedIdentities": {
+      "<imgBuilderId>": {}
+    }
+  },
+  "properties": {
+    "buildTimeoutInMinutes": 80,
+
+    "vmProfile": {
+      "vmSize": "Standard_D1_v2",
+      "osDiskSizeGB": 30
+    },
+
+    "source": {
+      "type": "PlatformImage",
+      "publisher": "Canonical",
+      "offer": "UbuntuServer",
+      "sku": "18.04-LTS",
+      "version": "latest"
+    },
+    "customize": [
+      {
+        "type": "Shell",
+        "name": "RunScriptFromSource",
+        "scriptUri": "<srcRepoUrl>/scripts/linux-vm-custom-script.sh"
+      },
+      {
+        "type": "File",
+        "name": "downloadBuildArtifacts",
+        "sourceUri": "<srcRepoUrl>/artifacts/index.html",
+        "destination": "/tmp/index.html"
+      },
+      {
+        "type": "Shell",
+        "name": "setupBuildPath",
+        "inline": [
+          "sudo mkdir /buildArtifacts",
+          "sudo cp /tmp/index.html /buildArtifacts/index.html"
+        ]
+      },
+      {
+        "type": "Shell",
+        "name": "InstallJdk11",
+        "inline": [
+          "sudo add-apt-repository ppa:openjdk-r/ppa",
+          "sudo apt-get update",
+          "sudo apt install openjdk-11-jdk"
+        ]
+      }
+    ],
+    "distribute": [
+      {
+        "type": "ManagedImage",
+        "imageId": "/subscriptions/<subscriptionID>/resourceGroups/<rgName>/providers/Microsoft.Compute/images/<imageName>",
+        "location": "<region>",
+        "runOutputName": "<runOutputName>",
+        "artifactTags": {
+          "source": "azVmImageBuilder",
+          "baseosimg": "ubuntu1804"
+        }
+      }
+    ]
+  }
+}

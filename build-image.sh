@@ -9,6 +9,7 @@ tmpDir=tmp
 imageName=linux-jdk11
 imageVersion=1
 imageFullName=${imageName}-${imageVersion}
+srcRepoUrl=https://raw.githubusercontent.com/adybfadel/azure-image-builder/master/
 
 # resource group name
 sigResourceGroup=image-gallery-rg
@@ -22,6 +23,8 @@ imageDefName=linux-vm-image
 #additionalRegion=eastus
 # image distribution metadata reference name
 #runOutputName=linux-vm-image
+
+mkdir -p $tmpDir
 
 subscriptionID=$(az account show --query id --output tsv)
 echo ""
@@ -45,8 +48,9 @@ imgBuilderCliId=$(az identity show -g $sigResourceGroup -n $identityName --query
 echo "get the user identity URI, needed for the template"
 imgBuilderId=/subscriptions/$subscriptionID/resourcegroups/$sigResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identityName
 
-echo "this command will download an Azure role definition template, and update the template with the parameters specified earlier."
-curl https://raw.githubusercontent.com/adybfadel/azure-image-builder/master/scripts/image-builder-roles.json -o $tmpDir/image-builder-roles.json
+echo "download an Azure role definition template"
+curl $srcRepoUrl/scripts/image-builder-roles.json -o $tmpDir/image-builder-roles.json
+#cp json/image-builder-roles.json $tmpDir/image-builder-roles.json
 
 imageRoleDefName="Image Builder Image Def"$(date +'%s')
 
@@ -82,17 +86,20 @@ az sig image-definition create \
    --os-type Linux
 
 echo "download image template"
-curl https://raw.githubusercontent.com/adybfadel/azure-image-builder/master/linux-vm-image-template.json -o $tmpDir/linux-vm-image-template.json
-sed -i -e "s/<subscriptionID>/$subscriptionID/g" $tmpDir/linux-vm-image-template.json
-sed -i -e "s/<rgName>/$sigResourceGroup/g" $tmpDir/linux-vm-image-template.json
-sed -i -e "s/<imageDefName>/$imageDefName/g" $tmpDir/linux-vm-image-template.json
-sed -i -e "s/<sharedImageGalName>/$sigName/g" $tmpDir/linux-vm-image-template.json
-sed -i -e "s/<region1>/$location/g" $tmpDir/linux-vm-image-template.json
-sed -i -e "s/<region2>/$additionalregion/g" $tmpDir/linux-vm-image-template.json
-sed -i -e "s/<runOutputName>/$runOutputName/g" $tmpDir/linux-vm-image-template.json
-sed -i -e "s%<imgBuilderId>%$imgBuilderId%g" $tmpDir/linux-vm-image-template.json
+curl $srcRepoUrl/json/ubuntu1804-image-template.json -o $tmpDir/image-template.json
+#cp json/ubuntu1804-image-template.json $tmpDir/image-template.json
 
-cat $tmpDir/linux-vm-image-template.json
+sed -i -e "s/<subscriptionID>/$subscriptionID/g" $tmpDir/image-template.json
+sed -i -e "s/<rgName>/$sigResourceGroup/g" $tmpDir/image-template.json
+sed -i -e "s/<imageName>/$imageFullName/g" $tmpDir/image-template.json
+sed -i -e "s/<sharedImageGalName>/$sigName/g" $tmpDir/image-template.json
+sed -i -e "s/<region1>/$location/g" $tmpDir/image-template.json
+sed -i -e "s/<region2>/$additionalregion/g" $tmpDir/image-template.json
+sed -i -e "s/<runOutputName>/$runOutputName/g" $tmpDir/image-template.json
+sed -i -e "s%<imgBuilderId>%$imgBuilderId%g" $tmpDir/image-template.json
+sed -i -e "s/<srcRepoUrl>/$srcRepoUrl/g" $tmpDir/image-template.json
+
+cat $tmpDir/image-template.json
 
 ## Create the image version
 ###########################
@@ -100,7 +107,7 @@ cat $tmpDir/linux-vm-image-template.json
 echo "submit the image configuration to the Azure Image Builder service"
 az resource create \
     --resource-group $sigResourceGroup \
-    --properties @linux-vm-image-template.json \
+    --properties @image-template.json \
     --is-full-object \
     --resource-type Microsoft.VirtualMachineImages/imageTemplates \
     -n $imageFullName
@@ -111,3 +118,6 @@ az resource invoke-action \
      --resource-type  Microsoft.VirtualMachineImages/imageTemplates \
      -n $imageFullName \
      --action Run
+
+echo "End."
+#rm -rf $tmpDir
